@@ -1,0 +1,6 @@
+.venv
+*.md
+.env
+*.pyc
+*.txt
+PKG-INFO
