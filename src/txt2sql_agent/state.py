@@ -9,3 +9,4 @@ from langchain_core.messages import AnyMessage
 class AgentState(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
     iterations: int
+    sql_review_count: int

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
 
 load_dotenv()
 
@@ -18,12 +19,15 @@ CLICKHOUSE_PASSWORD = os.getenv("CLICKHOUSE_PASSWORD", "")
 CLICKHOUSE_DB = os.getenv("CLICKHOUSE_DB", "txt2sql")
 MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", "3"))
 MAX_ITERATIONS = int(os.getenv("MAX_ITERATIONS", "10"))
+MAX_SQL_REVIEW_ATTEMPTS = int(os.getenv("MAX_SQL_REVIEW_ATTEMPTS", "3"))
 LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY", "")
 LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY", "")
 LANGFUSE_BASE_URL = os.getenv("LANGFUSE_BASE_URL", os.getenv("LANGFUSE_HOST", "http://localhost:3000"))
 LANGFUSE_ENABLED = os.getenv("LANGFUSE_ENABLED", "true").lower() in ("true", "1", "yes")
 
 _SCHEMA_OVERRIDES: dict | None = None
+
+_SQL_REVIEW_SERVICE: SqlReviewService | None = None
 
 
 def get_schema_overrides() -> dict:
@@ -53,3 +57,25 @@ def get_glossary() -> str:
 def get_business_context() -> str:
     overrides = get_schema_overrides()
     return overrides.get("business_context", "")
+
+
+def get_sql_review_service() -> SqlReviewService:
+    """Фабрика singleton-сервиса SQL-ревью. Собирает все зависимости."""
+    global _SQL_REVIEW_SERVICE
+    if _SQL_REVIEW_SERVICE is None:
+        from .db import get_client
+        from .schema_repository import SchemaRepository
+        from .sql_review import SqlFixer, SqlReviewService, SqlValidator
+
+        client = get_client()
+        schema_repo = SchemaRepository(client)
+        validator = SqlValidator()
+        llm = ChatOpenAI(
+            api_key=OPENAI_API_KEY,
+            base_url=OPENAI_API_BASE,
+            model=OPENAI_MODEL,
+            temperature=0,
+        )
+        fixer = SqlFixer(llm)
+        _SQL_REVIEW_SERVICE = SqlReviewService(schema_repo, validator, fixer)
+    return _SQL_REVIEW_SERVICE

@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 
 from dotenv import load_dotenv
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from rich.console import Console
 from rich.panel import Panel
 
@@ -72,6 +72,7 @@ def main() -> None:
             input_state = {
                 "messages": [HumanMessage(content=query)],
                 "iterations": 0,
+                "sql_review_count": 0,
             }
 
             with console.status("[dim]Thinking...[/dim]"):
@@ -115,6 +116,28 @@ def main() -> None:
                                             content,
                                             title="[green]Observation[/green]",
                                             border_style="green",
+                                        ))
+                        elif node_name == "sql_review":
+                            msgs = node_output.get("messages", [])
+                            for msg in msgs:
+                                if isinstance(msg, SystemMessage) and "SQL Review" in msg.content:
+                                    if "исправлено" in msg.content:
+                                        console.print(Panel(
+                                            msg.content,
+                                            title="[yellow]SQL Review: исправлено[/yellow]",
+                                            border_style="yellow",
+                                        ))
+                                    elif "не удалось" in msg.content:
+                                        console.print(Panel(
+                                            msg.content,
+                                            title="[red]SQL Review: ошибка[/red]",
+                                            border_style="red",
+                                        ))
+                                    elif "предупреждения" in msg.content:
+                                        console.print(Panel(
+                                            msg.content,
+                                            title="[dim]SQL Review: предупреждения[/dim]",
+                                            border_style="dim",
                                         ))
 
             console.print()
